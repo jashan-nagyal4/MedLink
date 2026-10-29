@@ -1,0 +1,41 @@
+{
+  "name": "medlink-backend",
+  "version": "1.0.0",
+  "description": "MedLink Intelligent Emergency & Hospital Allocation System",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "db:init": "node scripts/init-db.js",
+    "db:seed": "node scripts/seed.js",
+    "db:migrate-resources": "node scripts/migrate-resources.js",
+    "db:migrate-coordination": "node scripts/migrate-coordination.js",
+    "db:migrate-auth": "node scripts/migrate-auth.js",
+    "db:migrate-transfer": "node scripts/migrate-transfer.js",
+    "test": "node scripts/test-evaluation.js",
+    "test:triage": "node scripts/test-triage.js",
+    "test:matching": "node scripts/test-matching.js",
+    "test:websockets": "node scripts/test-websockets.js",
+    "test:coordination": "node scripts/test-coordination.js",
+    "test:tracking": "node scripts/test-tracking.js",
+    "test:sync": "node scripts/test-sync.js",
+    "test:integration": "node scripts/test-integration.js",
+    "test:evaluation": "node scripts/test-evaluation.js",
+    "test:auth": "node scripts/test-auth.js",
+    "test:refinements": "node scripts/test-refinements.js",
+    "test:batch2": "node scripts/test-batch2.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.13.1",
+    "socket.io": "^4.8.4"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9",
+    "socket.io-client": "^4.8.4"
+  }
+}
