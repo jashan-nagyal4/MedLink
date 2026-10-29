@@ -13,6 +13,19 @@ const bcrypt = require("bcryptjs");
 const db = require("../src/config/db");
 
 const schemaSql = `
+-- Create users table if not exists
+CREATE TABLE IF NOT EXISTS users (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(120) NOT NULL,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  role VARCHAR(50) NOT NULL DEFAULT 'patient',
+  hospital_id BIGINT REFERENCES hospitals(id) ON DELETE SET NULL,
+  phone VARCHAR(30),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- Drop previous restrictive constraints
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_check;
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;

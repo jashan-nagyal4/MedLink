@@ -40,12 +40,16 @@ CREATE INDEX IF NOT EXISTS hospital_resources_hospital_idx ON hospital_resources
 CREATE TABLE IF NOT EXISTS hospital_specialists (
   id BIGSERIAL PRIMARY KEY,
   hospital_id BIGINT NOT NULL REFERENCES hospitals(id) ON DELETE CASCADE,
+  department VARCHAR(100),
   specialty VARCHAR(100) NOT NULL,
-  available BOOLEAN NOT NULL DEFAULT FALSE,
-  count_available INTEGER NOT NULL DEFAULT 0 CHECK (count_available >= 0),
+  doctor_name VARCHAR(120),
+  shift VARCHAR(60) NOT NULL DEFAULT 'Morning (08:00 - 16:00)',
+  on_duty BOOLEAN NOT NULL DEFAULT true,
+  contact_phone VARCHAR(30),
+  available BOOLEAN NOT NULL DEFAULT TRUE,
+  count_available INTEGER NOT NULL DEFAULT 1 CHECK (count_available >= 0),
   duty_notes TEXT,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (hospital_id, specialty)
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS hospital_specialists_hospital_idx ON hospital_specialists (hospital_id);
@@ -86,8 +90,15 @@ CREATE TABLE IF NOT EXISTS emergency_incidents (
     CHECK (condition_category IN ('cardiac', 'trauma', 'respiratory', 'stroke', 'burns', 'pediatric', 'obstetric', 'general', 'other')),
   vital_signs JSONB NOT NULL DEFAULT '{}'::jsonb,
   status VARCHAR(30) NOT NULL DEFAULT 'reported'
-    CHECK (status IN ('reported', 'assessing', 'dispatching', 'assigned', 'en_route', 'arrived', 'closed', 'cancelled')),
+    CHECK (status IN (
+      'reported', 'assessing', 'dispatching', 'requested', 'accepted',
+      'assigned', 'rejected', 'timed_out', 'escalated', 'en_route',
+      'arrived', 'closed', 'cancelled', 'exhausted'
+    )),
   assigned_hospital_id BIGINT REFERENCES hospitals(id) ON DELETE SET NULL,
+  escalation_level INTEGER NOT NULL DEFAULT 0,
+  current_dispatch_hospital_id BIGINT REFERENCES hospitals(id) ON DELETE SET NULL,
+  reported_by_user_id BIGINT,
   notes TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -113,3 +124,96 @@ CREATE TABLE IF NOT EXISTS incident_resource_requirements (
 );
 
 CREATE INDEX IF NOT EXISTS incident_reqs_incident_idx ON incident_resource_requirements (incident_id);
+
+-- 7. Users & Role Access Management
+CREATE TABLE IF NOT EXISTS users (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(120) NOT NULL,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  role VARCHAR(50) NOT NULL DEFAULT 'patient'
+    CHECK (role IN ('admin', 'hospital_manager', 'hospital_staff', 'patient', 'citizen')),
+  hospital_id BIGINT REFERENCES hospitals(id) ON DELETE SET NULL,
+  phone VARCHAR(30),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS users_email_idx ON users (email);
+CREATE INDEX IF NOT EXISTS users_role_idx ON users (role);
+CREATE INDEX IF NOT EXISTS users_hospital_idx ON users (hospital_id);
+
+-- 8. Pre-assigned Roles
+CREATE TABLE IF NOT EXISTS preassigned_roles (
+  id SERIAL PRIMARY KEY,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  role VARCHAR(50) NOT NULL DEFAULT 'patient',
+  hospital_id BIGINT REFERENCES hospitals(id) ON DELETE SET NULL,
+  assigned_by VARCHAR(255),
+  notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS preassigned_roles_email_idx ON preassigned_roles (LOWER(email));
+
+-- 9. Hospital Blood Bank & Component Inventory
+CREATE TABLE IF NOT EXISTS hospital_blood_inventory (
+  id BIGSERIAL PRIMARY KEY,
+  hospital_id BIGINT NOT NULL REFERENCES hospitals(id) ON DELETE CASCADE,
+  blood_group VARCHAR(30) NOT NULL,
+  units_available INTEGER NOT NULL DEFAULT 0 CHECK (units_available >= 0),
+  status VARCHAR(30) NOT NULL DEFAULT 'available',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (hospital_id, blood_group)
+);
+
+CREATE INDEX IF NOT EXISTS blood_inv_hospital_idx ON hospital_blood_inventory (hospital_id);
+
+-- 10. Real-time Incident Dispatch Logs & FSM Audit Trail
+CREATE TABLE IF NOT EXISTS incident_dispatch_logs (
+  id BIGSERIAL PRIMARY KEY,
+  incident_id BIGINT NOT NULL REFERENCES emergency_incidents(id) ON DELETE CASCADE,
+  hospital_id BIGINT NOT NULL REFERENCES hospitals(id) ON DELETE CASCADE,
+  rank_position INTEGER NOT NULL DEFAULT 1,
+  match_score NUMERIC(5, 2),
+  distance_km NUMERIC(6, 2),
+  travel_time_minutes NUMERIC(5, 1),
+  status VARCHAR(30) NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending', 'accepted', 'rejected', 'timed_out', 'cancelled')),
+  timeout_seconds INTEGER NOT NULL DEFAULT 45,
+  requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL,
+  responded_at TIMESTAMPTZ,
+  response_reason TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS dispatch_logs_incident_idx ON incident_dispatch_logs (incident_id);
+CREATE INDEX IF NOT EXISTS dispatch_logs_hospital_idx ON incident_dispatch_logs (hospital_id);
+CREATE INDEX IF NOT EXISTS dispatch_logs_status_idx ON incident_dispatch_logs (status);
+
+-- 11. Inter-Hospital Patient Transfers
+CREATE TABLE IF NOT EXISTS patient_transfers (
+  id BIGSERIAL PRIMARY KEY,
+  source_hospital_id BIGINT NOT NULL REFERENCES hospitals(id) ON DELETE CASCADE,
+  target_hospital_id BIGINT NOT NULL REFERENCES hospitals(id) ON DELETE CASCADE,
+  patient_id BIGINT REFERENCES patients(id) ON DELETE SET NULL,
+  patient_name VARCHAR(120),
+  condition_category VARCHAR(60),
+  severity VARCHAR(30),
+  specialty_needed VARCHAR(100),
+  equipment_needed VARCHAR(100),
+  transfer_reason TEXT,
+  status VARCHAR(30) NOT NULL DEFAULT 'requested'
+    CHECK (status IN ('requested', 'approved', 'declined', 'in_transit', 'completed', 'cancelled')),
+  requested_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  responded_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  response_reason TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS transfers_source_hosp_idx ON patient_transfers (source_hospital_id);
+CREATE INDEX IF NOT EXISTS transfers_target_hosp_idx ON patient_transfers (target_hospital_id);
+CREATE INDEX IF NOT EXISTS transfers_status_idx ON patient_transfers (status);

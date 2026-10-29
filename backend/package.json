@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "db:setup": "node scripts/init-db.js && node scripts/seed.js && node scripts/migrate-auth.js && node scripts/migrate-coordination.js",
+    "db:setup": "node scripts/init-db.js && node scripts/seed.js && node scripts/migrate-resources.js && node scripts/migrate-auth.js && node scripts/migrate-coordination.js && node scripts/migrate-new-hospitals.js && node scripts/migrate-5hospitals-equipment-roster.js",
     "db:init": "node scripts/init-db.js",
     "db:seed": "node scripts/seed.js",
     "db:migrate-resources": "node scripts/migrate-resources.js",
